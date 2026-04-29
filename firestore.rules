@@ -1,0 +1,272 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // 0. Global safety net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Phase 3: Global Helpers
+    function isSignedIn() { return request.auth != null; }
+    function isVerified() { return isSignedIn() && request.auth.token.email_verified == true; }
+    function isOwner(userId) { return isSignedIn() && request.auth.uid == userId; }
+    function isAdmin() { return isSignedIn() && (request.auth.token.email == 'm.sufiyan1581@gmail.com' || exists(/databases/$(database)/documents/admins/$(request.auth.uid))); }
+    function incoming() { return request.resource.data; }
+    function existing() { return resource.data; }
+    function isValidId(id) { return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$'); }
+
+    // Validation Helpers
+    function isValidUser(data) {
+      return data.keys().hasAll(['uid', 'email', 'role']) && 
+             data.uid == request.auth.uid &&
+             data.email is string && data.email.size() <= 100 &&
+             data.role in ['user', 'freelancer', 'recruiter'] &&
+             (data.get('bio', '') is string && data.get('bio', '').size() <= 1000) &&
+             (data.get('displayName', '') is string && data.get('displayName', '').size() <= 100);
+    }
+
+    function isValidPost(data) {
+      return data.keys().hasAll(['authorId', 'content', 'createdAt']) &&
+             data.authorId == request.auth.uid &&
+             data.content is string && data.content.size() <= 5000 &&
+             (!data.keys().hasAny(['mediaUrl']) || data.mediaUrl == null || (data.mediaUrl is string && data.mediaUrl.size() <= 500000)) &&
+             (!data.keys().hasAny(['mediaType']) || data.mediaType == null || (data.mediaType is string && data.mediaType.size() <= 50)) &&
+             (!data.keys().hasAny(['authorName']) || data.authorName == null || data.authorName is string) &&
+             (!data.keys().hasAny(['authorPhoto']) || data.authorPhoto == null || data.authorPhoto is string) &&
+             (!data.keys().hasAny(['likesCount']) || data.likesCount is number) &&
+             (!data.keys().hasAny(['commentsCount']) || data.commentsCount is number);
+    }
+
+    function isValidPostCreate(data) {
+      return isValidPost(data) && data.createdAt == request.time;
+    }
+
+    function isValidPostUpdate(data) {
+      return isValidPost(data) && data.createdAt == existing().createdAt;
+    }
+
+    function isValidComment(data) {
+      return data.keys().hasAll(['authorId', 'text', 'createdAt']) &&
+             data.authorId == request.auth.uid &&
+             data.text is string && data.text.size() <= 1000 &&
+             data.createdAt == request.time;
+    }
+
+    function isValidLike(data) {
+      return data.keys().hasAll(['createdAt']) &&
+             data.createdAt == request.time;
+    }
+
+    function isValidMessage(data) {
+      return data.keys().hasAll(['senderId', 'text', 'createdAt']) &&
+             data.senderId == request.auth.uid &&
+             data.text is string && data.text.size() <= 2000 &&
+             data.createdAt == request.time;
+    }
+
+    function isValidJob(data) {
+      return data.keys().hasAll(['recruiterId', 'title', 'description', 'createdAt', 'status', 'budget', 'type']) &&
+             data.recruiterId == request.auth.uid &&
+             data.title is string && data.title.size() <= 200 &&
+             data.description is string && data.description.size() <= 10000 &&
+             data.status in ['open', 'closed', 'in-progress'] &&
+             data.budget is string && data.budget.size() <= 200 &&
+             data.type in ['fixed', 'hourly'] &&
+             (!data.keys().hasAny(['recruiterName']) || data.recruiterName == null || data.recruiterName is string);
+    }
+
+    function isValidJobCreate(data) {
+      return isValidJob(data) && data.createdAt == request.time;
+    }
+
+    function isValidJobUpdate(data) {
+      return isValidJob(data) && data.createdAt == existing().createdAt;
+    }
+
+    function isValidApplicationShape(data) {
+      return data.proposal is string && data.proposal.size() <= 5000 &&
+             data.status in ['pending', 'reviewed', 'accepted', 'rejected', 'reviewed'];
+    }
+
+    function isValidApplicationCreate(data) {
+      return data.keys().hasAll(['freelancerId', 'proposal', 'status', 'createdAt']) &&
+             data.freelancerId == request.auth.uid &&
+             isValidApplicationShape(data) &&
+             data.createdAt == request.time &&
+             (!data.keys().hasAny(['freelancerName']) || data.freelancerName == null || data.freelancerName is string);
+    }
+
+    function isValidApplicationUpdate(data) {
+      return data.freelancerId == existing().freelancerId &&
+             data.createdAt == existing().createdAt &&
+             isValidApplicationShape(data);
+    }
+
+    function isValidConnection(data) {
+      return data.keys().hasAll(['user1Id', 'user2Id', 'status', 'createdAt']) &&
+             (data.user1Id == request.auth.uid || data.user2Id == request.auth.uid) &&
+             data.status in ['pending', 'accepted', 'blocked'] &&
+             data.createdAt == request.time;
+    }
+
+    function isValidNotification(data) {
+      return data.keys().hasAll(['userId', 'type', 'title', 'message', 'read', 'createdAt']) &&
+             data.userId is string && data.userId.size() <= 128 &&
+             data.createdAt == request.time;
+    }
+
+    function isValidChat(data) {
+      return data.keys().hasAll(['participants', 'updatedAt']) &&
+             data.participants is list &&
+             data.participants.size() == 2 &&
+             request.auth.uid in data.participants &&
+             data.updatedAt == request.time;
+    }
+
+    function isValidGig(data) {
+      return data.keys().hasAll(['freelancerId', 'title', 'description', 'price', 'createdAt']) &&
+             data.freelancerId == request.auth.uid &&
+             data.title is string && data.title.size() <= 200 &&
+             data.description is string && data.description.size() <= 10000 &&
+             data.price is number && data.price > 0 &&
+             (!data.keys().hasAny(['deliveryDays']) || data.deliveryDays is number) &&
+             (!data.keys().hasAny(['category']) || data.category is string) &&
+             (!data.keys().hasAny(['freelancerName']) || data.freelancerName is string);
+    }
+
+    function isValidFollow(data) {
+      return data.keys().hasAll(['followerId', 'followingId', 'createdAt']) &&
+             data.followerId == request.auth.uid &&
+             data.followerId != data.followingId &&
+             data.followingId is string && data.followingId.size() <= 128 &&
+             data.createdAt == request.time;
+    }
+
+    function isValidBlog(data) {
+      return data.keys().hasAll(['title', 'content', 'authorId', 'createdAt']) &&
+             data.title is string && data.title.size() <= 200 &&
+             data.content is string && data.content.size() <= 20000 &&
+             data.authorId == request.auth.uid &&
+             data.createdAt == request.time &&
+             (!data.keys().hasAny(['imageUrl']) || data.imageUrl == null || data.imageUrl is string) &&
+             (!data.keys().hasAny(['tags']) || data.tags is list) &&
+             (!data.keys().hasAny(['published']) || data.published is bool);
+    }
+
+    // 1. Users Collection
+    match /users/{userId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && isOwner(userId) && isValidUser(incoming());
+      allow update: if isAdmin() || (isVerified() && isOwner(userId) && isValidUser(incoming()) && 
+                    incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'photoURL', 'bio', 'role']));
+      allow delete: if isAdmin();
+    }
+
+    // 2. Posts Collection
+    match /posts/{postId} {
+      allow read: if isSignedIn();
+      allow create: if (isAdmin() || isVerified()) && isValidPostCreate(incoming());
+      allow update: if isAdmin() || (isSignedIn() && (
+        (isVerified() && isOwner(existing().authorId) && isValidPostUpdate(incoming()) && 
+         incoming().diff(existing()).affectedKeys().hasOnly(['content', 'mediaUrl', 'mediaType', 'likesCount', 'commentsCount'])) ||
+        (incoming().diff(existing()).affectedKeys().hasOnly(['likesCount', 'commentsCount']))
+      ));
+      allow delete: if isAdmin() || isOwner(existing().authorId);
+
+      // Subcollection: Comments
+      match /comments/{commentId} {
+        allow read: if isSignedIn();
+        allow create: if isVerified() && isValidComment(incoming());
+        allow delete: if isAdmin() || isOwner(existing().authorId);
+      }
+
+      // Subcollection: Likes
+      match /likes/{userId} {
+        allow read: if isSignedIn();
+        allow create: if isOwner(userId) && isValidLike(incoming());
+        allow delete: if isOwner(userId);
+      }
+    }
+
+    // 2.1 Chats Collection
+    match /chats/{chatId} {
+      allow read: if isAdmin() || (isSignedIn() && (chatId.matches('.*' + request.auth.uid + '.*') || (resource != null && request.auth.uid in resource.data.participants)));
+      allow create: if (isAdmin() || isVerified()) && isValidChat(incoming());
+      allow update: if isVerified() && (request.auth.uid in existing().participants) &&
+                    incoming().updatedAt == request.time;
+      
+      match /messages/{messageId} {
+        allow read: if isAdmin() || (isSignedIn() && chatId.matches('.*' + request.auth.uid + '.*'));
+        allow create: if (isAdmin() || isVerified()) && isValidMessage(incoming()) && chatId.matches('.*' + request.auth.uid + '.*');
+      }
+    }
+
+    // 3. Jobs Collection
+    match /jobs/{jobId} {
+      allow read: if isSignedIn();
+      allow create: if (isAdmin() || isVerified()) && isValidJobCreate(incoming());
+      allow update: if isAdmin() || (isVerified() && isOwner(existing().recruiterId) && isValidJobUpdate(incoming()) &&
+                    incoming().diff(existing()).affectedKeys().hasOnly(['title', 'description', 'budget', 'type', 'status']));
+      allow delete: if isAdmin() || (isVerified() && isOwner(existing().recruiterId));
+
+      // Subcollection: Applications
+      match /applications/{applicationId} {
+        allow read: if isAdmin() || (isSignedIn() && (isOwner(resource.data.freelancerId) || isOwner(get(/databases/$(database)/documents/jobs/$(jobId)).data.recruiterId)));
+        allow create: if isVerified() && isValidApplicationCreate(incoming());
+        allow update: if isAdmin() || (isVerified() && isValidApplicationUpdate(incoming()) && (
+          (isOwner(existing().freelancerId) && incoming().diff(existing()).affectedKeys().hasOnly(['proposal', 'bidAmount', 'updatedAt'])) ||
+          (isOwner(get(/databases/$(database)/documents/jobs/$(jobId)).data.recruiterId) && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'updatedAt']))
+        ));
+      }
+    }
+
+    // 4. Connections Collection
+    match /connections/{connectionId} {
+      allow read: if isAdmin() || (isSignedIn() && (isOwner(resource.data.user1Id) || isOwner(resource.data.user2Id)));
+      allow create: if (isAdmin() || isSignedIn()) && isValidConnection(incoming());
+      allow update: if isSignedIn() && (isOwner(existing().user1Id) || isOwner(existing().user2Id)) && 
+                    incoming().diff(existing()).affectedKeys().hasOnly(['status']);
+    }
+
+    // 5. Notifications Collection
+    match /notifications/{notifId} {
+      allow read: if isAdmin() || (isSignedIn() && isOwner(existing().userId));
+      allow create: if isAdmin() || (isSignedIn() && isValidNotification(incoming()));
+      allow update: if isSignedIn() && isOwner(existing().userId) && 
+                    incoming().diff(existing()).affectedKeys().hasOnly(['read']);
+      allow delete: if isSignedIn() && isOwner(existing().userId);
+    }
+
+    // 6. Gigs Collection
+    match /gigs/{gigId} {
+      allow read: if isSignedIn();
+      allow create: if (isAdmin() || isVerified()) && isValidGig(incoming());
+      allow update: if isAdmin() || (isVerified() && isOwner(existing().freelancerId) && isValidGig(incoming()) &&
+                    incoming().diff(existing()).affectedKeys().hasOnly(['title', 'description', 'price', 'deliveryDays', 'category', 'images', 'tags']));
+      allow delete: if isAdmin() || (isVerified() && isOwner(existing().freelancerId));
+    }
+
+    // 7. Follows Collection
+    match /follows/{followId} {
+      allow read: if isSignedIn();
+      allow create: if (isAdmin() || isVerified()) && isValidFollow(incoming());
+      allow delete: if isAdmin() || (isVerified() && isOwner(existing().followerId));
+    }
+
+    // 8. Admins Collection
+    match /admins/{adminId} {
+      allow read: if isSignedIn(); // Only needed if users need to know who is an admin, better let only admins read it but kept simple
+      allow write: if false; // Only manageable through firebase console
+    }
+
+    // 9. Blogs Collection
+    match /blogs/{blogId} {
+      allow read: if isSignedIn();
+      allow create: if isAdmin() && isValidBlog(incoming());
+      allow update: if isAdmin() &&
+                    incoming().diff(existing()).affectedKeys().hasOnly(['title', 'content', 'imageUrl', 'tags', 'published']) &&
+                    incoming().createdAt == existing().createdAt;
+      allow delete: if isAdmin();
+    }
+  }
+}

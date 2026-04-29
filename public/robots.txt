@@ -1,0 +1,11 @@
+User-agent: *
+Allow: /
+Allow: /support
+Allow: /login
+Disallow: /dashboard
+Disallow: /admin
+Disallow: /profile
+Disallow: /messages
+Disallow: /network
+
+Sitemap: https://facelinkup.com/sitemap.xml
