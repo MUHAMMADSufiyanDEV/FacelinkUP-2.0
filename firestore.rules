@@ -1,0 +1,137 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Default deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Global Helpers
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isAdmin() {
+      return isSignedIn() && (
+        request.auth.token.email == 'm.sufiyan1581@gmail.com' ||
+        request.auth.token.email == 'sufiyangaming911@gmail.com'
+      );
+    }
+
+    // Blogs Collection
+    match /blogs/{blogId} {
+      allow read, list: if isSignedIn();
+      allow create: if isAdmin();
+      allow update, delete: if isAdmin();
+    }
+
+    // Jobs Collection
+    match /jobs/{jobId} {
+      allow read, list: if isSignedIn();
+      allow create: if isAdmin() || (isSignedIn() && (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'recruiter'));
+      allow update, delete: if isAdmin() || (isSignedIn() && (resource.data.recruiterId == request.auth.uid));
+
+      match /applications/{appId} {
+        allow read, list: if isAdmin() || (isSignedIn() && (request.auth.uid == get(/databases/$(database)/documents/jobs/$(jobId)).data.recruiterId || request.auth.uid == resource.data.freelancerId));
+        allow create: if isSignedIn();
+        allow update: if isAdmin() || (isSignedIn() && (request.auth.uid == get(/databases/$(database)/documents/jobs/$(jobId)).data.recruiterId));
+      }
+    }
+
+    // Follows Collection
+    match /follows/{followId} {
+      allow read, list: if isSignedIn();
+      allow create: if isSignedIn() && request.resource.data.followerId == request.auth.uid;
+      allow delete: if isAdmin() || (isSignedIn() && resource.data.followerId == request.auth.uid);
+    }
+
+    // Connections Collection
+    match /connections/{connId} {
+      allow read, list: if isSignedIn() && (request.auth.uid == resource.data.user1Id || request.auth.uid == resource.data.user2Id);
+      allow create: if isSignedIn() && (request.auth.uid == request.resource.data.user1Id || request.auth.uid == request.resource.data.user2Id);
+    }
+
+    // Chats Collection
+    match /chats/{chatId} {
+      allow read, list, update: if isAdmin() || (isSignedIn() && (request.auth.uid in resource.data.participants));
+      allow create: if isSignedIn() && (request.auth.uid in request.resource.data.participants);
+      
+      match /messages/{msgId} {
+        allow read, list, create: if isAdmin() || (isSignedIn() && (request.auth.uid in get(/databases/$(database)/documents/chats/$(chatId)).data.participants));
+      }
+    }
+
+    // Posts Collection
+    match /posts/{postId} {
+      allow read, list: if isSignedIn();
+      allow create: if isSignedIn();
+      allow update, delete: if isAdmin() || (isSignedIn() && resource.data.authorId == request.auth.uid);
+
+      // Post Likes
+      match /likes/{userId} {
+        allow read: if isSignedIn();
+        allow write: if isAdmin() || isOwner(userId);
+      }
+
+      // Post Comments
+      match /comments/{commentId} {
+        allow read, list: if isSignedIn();
+        allow create: if isSignedIn();
+        allow update, delete: if isAdmin() || (isSignedIn() && resource.data.authorId == request.auth.uid);
+      }
+    }
+
+    // Gigs Collection
+    match /gigs/{gigId} {
+      allow read, list: if isSignedIn();
+      allow create: if isSignedIn();
+      allow update, delete: if isAdmin() || (isSignedIn() && resource.data.authorId == request.auth.uid);
+    }
+
+    // Notifications Collection
+    match /notifications/{notificationId} {
+      allow read, list: if isAdmin() || isOwner(resource.data.userId);
+      allow create: if isSignedIn();
+      allow update, delete: if isAdmin() || isOwner(resource.data.userId);
+    }
+
+
+
+    // Users Collection
+    match /users/{userId} {
+      allow get, list: if isSignedIn();
+      allow create, update: if isAdmin() || isOwner(userId);
+
+      match /jobMatches/{matchId} {
+        allow read, list, write: if isAdmin() || isOwner(userId);
+      }
+
+      match /tasks/{taskId} {
+        allow read, list, write: if isAdmin() || isOwner(userId);
+      }
+    }
+
+    // Calls Collection
+    match /calls/{callId} {
+      allow read, list, update, delete: if isSignedIn() && (request.auth.uid == resource.data.callerId || request.auth.uid == resource.data.receiverId);
+      allow create: if isSignedIn() && (request.auth.uid == request.resource.data.callerId);
+
+      match /candidates/{candId} {
+        allow read, list: if isSignedIn() && (
+          get(/databases/$(database)/documents/calls/$(callId)).data.callerId == request.auth.uid || 
+          get(/databases/$(database)/documents/calls/$(callId)).data.receiverId == request.auth.uid
+        );
+        allow create: if isSignedIn();
+      }
+    }
+
+    match /admins/{uid} {
+      allow read: if isSignedIn() && (request.auth.uid == uid || isAdmin());
+      allow write: if isAdmin();
+    }
+  }
+}
