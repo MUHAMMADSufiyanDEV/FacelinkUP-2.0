@@ -1,0 +1,224 @@
+{
+  "entities": {
+    "User": {
+      "title": "User Profile",
+      "description": "Professional and social identity of a user",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "email": { "type": "string", "format": "email" },
+        "displayName": { "type": "string" },
+        "photoURL": { "type": "string", "format": "uri" },
+        "role": { "type": "string", "enum": ["user", "freelancer", "recruiter"] },
+        "bio": { "type": "string" },
+        "skills": { "type": "array", "items": { "type": "string" } },
+        "experience": { "type": "array" },
+        "portfolio": { "type": "array" },
+        "resumeUrl": { "type": "string", "format": "uri" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "email", "role"]
+    },
+    "Post": {
+      "title": "Social Post",
+      "description": "Feed post with text or media",
+      "type": "object",
+      "properties": {
+        "authorId": { "type": "string" },
+        "content": { "type": "string" },
+        "mediaUrl": { "type": "string", "format": "uri" },
+        "mediaType": { "type": "string", "enum": ["image", "video"] },
+        "likesCount": { "type": "number" },
+        "commentsCount": { "type": "number" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["authorId", "content", "createdAt"]
+    },
+    "Job": {
+      "title": "Job Posting",
+      "description": "Freelance or full-time job opportunity",
+      "type": "object",
+      "properties": {
+        "recruiterId": { "type": "string" },
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "budget": { "type": "string" },
+        "type": { "type": "string", "enum": ["fixed", "hourly"] },
+        "status": { "type": "string", "enum": ["open", "closed", "in-progress"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["recruiterId", "title", "description", "createdAt"]
+    },
+    "Application": {
+      "title": "Job Application",
+      "description": "Freelancer proposal for a job",
+      "type": "object",
+      "properties": {
+        "jobId": { "type": "string" },
+        "freelancerId": { "type": "string" },
+        "proposal": { "type": "string" },
+        "bidAmount": { "type": "string" },
+        "status": { "type": "string", "enum": ["pending", "shortlisted", "hired", "rejected"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["jobId", "freelancerId", "proposal", "createdAt"]
+    },
+    "Connection": {
+      "title": "User Connection",
+      "description": "Relationship between two users",
+      "type": "object",
+      "properties": {
+        "user1Id": { "type": "string" },
+        "user2Id": { "type": "string" },
+        "status": { "type": "string", "enum": ["pending", "accepted", "blocked"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["user1Id", "user2Id", "status", "createdAt"]
+    },
+    "Notification": {
+      "title": "User Notification",
+      "description": "System or user-triggered notification",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "type": { "type": "string", "enum": ["like", "comment", "message", "system"] },
+        "title": { "type": "string" },
+        "message": { "type": "string" },
+        "link": { "type": "string" },
+        "read": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "type", "title", "message", "read", "createdAt"]
+    },
+    "Comment": {
+      "title": "Post Comment",
+      "description": "User comment on a post",
+      "type": "object",
+      "properties": {
+        "authorId": { "type": "string" },
+        "authorName": { "type": "string" },
+        "authorPhoto": { "type": "string" },
+        "text": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["authorId", "text", "createdAt"]
+    },
+    "Like": {
+      "title": "Post Like",
+      "description": "User like on a post",
+      "type": "object",
+      "properties": {
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["createdAt"]
+    },
+    "Message": {
+      "title": "Chat Message",
+      "description": "One-to-one or group message",
+      "type": "object",
+      "properties": {
+        "senderId": { "type": "string" },
+        "text": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["senderId", "text", "createdAt"]
+    },
+    "Gig": {
+      "title": "Freelancer Gig",
+      "description": "Service offered by a freelancer",
+      "type": "object",
+      "properties": {
+        "freelancerId": { "type": "string" },
+        "freelancerName": { "type": "string" },
+        "freelancerPhoto": { "type": "string" },
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "price": { "type": "number" },
+        "deliveryDays": { "type": "number" },
+        "category": { "type": "string" },
+        "images": { "type": "array", "items": { "type": "string" } },
+        "tags": { "type": "array", "items": { "type": "string" } },
+        "rating": { "type": "number" },
+        "reviewsCount": { "type": "number" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["freelancerId", "title", "description", "price", "createdAt"]
+    },
+    "Follow": {
+      "title": "User Follow",
+      "description": "One-way relationship where one user follows another",
+      "type": "object",
+      "properties": {
+        "followerId": { "type": "string" },
+        "followingId": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["followerId", "followingId", "createdAt"]
+    },
+    "Blog": {
+      "title": "Blog Post",
+      "description": "An article or blog post written by an admin",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string" },
+        "content": { "type": "string" },
+        "authorId": { "type": "string" },
+        "imageUrl": { "type": "string", "format": "uri" },
+        "tags": { "type": "array", "items": { "type": "string" } },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "published": { "type": "boolean" }
+      },
+      "required": ["title", "content", "authorId", "createdAt"]
+    }
+  },
+  "firestore": {
+    "users/{userId}": {
+      "schema": "User",
+      "description": "User profiles"
+    },
+    "posts/{postId}": {
+      "schema": "Post",
+      "description": "Global feed posts"
+    },
+    "posts/{postId}/comments/{commentId}": {
+      "schema": "Comment",
+      "description": "Comments on a post"
+    },
+    "posts/{postId}/likes/{userId}": {
+      "schema": "Like",
+      "description": "Likes on a post"
+    },
+    "chats/{chatId}/messages/{messageId}": {
+      "schema": "Message",
+      "description": "Messages in a chat thread"
+    },
+    "jobs/{jobId}": {
+      "schema": "Job",
+      "description": "Marketplace job listings"
+    },
+    "jobs/{jobId}/applications/{applicationId}": {
+      "schema": "Application",
+      "description": "Applications for a specific job"
+    },
+    "gigs/{gigId}": {
+      "schema": "Gig",
+      "description": "Freelancer service listings"
+    },
+    "connections/{connectionId}": {
+      "schema": "Connection",
+      "description": "User network relationships"
+    },
+    "follows/{followId}": {
+      "schema": "Follow",
+      "description": "User follow relationships"
+    },
+    "notifications/{notificationId}": {
+      "schema": "Notification",
+      "description": "User alerts"
+    },
+    "blogs/{blogId}": {
+      "schema": "Blog",
+      "description": "Platform blog posts and articles"
+    }
+  }
+}
